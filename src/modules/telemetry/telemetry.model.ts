@@ -8,6 +8,7 @@ export enum TelemetryAnchorStatus {
 
 const TelemetrySchema = new Schema(
   {
+    // metaField — identifies the sensor source
     // metaField — identifies the sensor source when provided by upstream systems
     sensorId: { type: String },
 

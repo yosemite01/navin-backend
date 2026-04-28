@@ -23,6 +23,9 @@ const swaggerDocumentPath = fileURLToPath(new URL('../docs/swagger.yaml', import
 export function buildApp() {
   const app = express();
 
+  // Enable weak ETags globally for client-side caching (Issue #80)
+  app.set('etag', 'weak');
+
   app.use(requestId());
   app.use(corsMiddleware);
   app.options('*', corsPreflight);

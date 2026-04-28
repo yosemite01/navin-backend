@@ -121,7 +121,6 @@ export async function processIotWebhook(body: IotWebhookBody) {
     if (result.detected) {
       await Promise.all(
         result.anomalies.map(async anomaly => {
-          // Format anomaly payload for socket emission
           const anomalyPayload: AnomalyAlertPayload = {
             anomalyId: anomaly._id,
             shipmentId: anomaly.shipmentId,

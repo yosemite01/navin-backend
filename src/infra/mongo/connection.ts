@@ -4,13 +4,18 @@ import { logger } from '../../shared/logger/logger.js';
 
 let testMongoServer: import('mongodb-memory-server').MongoMemoryServer | null = null;
 
+const MONGO_OPTIONS = {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 10000,
+} as const;
+
 export async function connectMongo(mongoUri: string) {
   if (env.NODE_ENV === 'test') {
     const { MongoMemoryServer } = await import('mongodb-memory-server');
     if (!testMongoServer) testMongoServer = await MongoMemoryServer.create();
-    await mongoose.connect(testMongoServer.getUri());
+    await mongoose.connect(testMongoServer.getUri(), MONGO_OPTIONS);
   } else {
-    await mongoose.connect(mongoUri);
+    await mongoose.connect(mongoUri, MONGO_OPTIONS);
   }
   logger.info('MongoDB connected');
 }

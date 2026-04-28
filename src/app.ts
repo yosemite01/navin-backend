@@ -1,5 +1,8 @@
+import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
 import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
@@ -24,10 +27,15 @@ const swaggerDocumentPath = fileURLToPath(new URL('../docs/swagger.yaml', import
 export function buildApp() {
   const app = express();
 
+  app.use(helmet());
   app.use(requestId());
   app.use(corsMiddleware);
   app.options('*', corsPreflight);
   app.use(express.json());
+
+  if (process.env.NODE_ENV !== 'production') {
+    app.use(morgan('dev'));
+  }
 
   app.use(standardLimiter);
   app.use('/api/auth/login', loginLimiter);

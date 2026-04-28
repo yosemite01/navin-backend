@@ -4,7 +4,7 @@ import { AppError } from './errors.js';
 
 export function errorMiddleware(): ErrorRequestHandler {
   return (err, _req, res, _next) => {
-    const isDev = (process.env.NODE_ENV || 'development') !== 'production';
+    const isDev = process.env.NODE_ENV !== 'production';
 
     // Malformed JSON body
     if (err instanceof SyntaxError && 'status' in err && (err as { status?: number }).status === 400) {

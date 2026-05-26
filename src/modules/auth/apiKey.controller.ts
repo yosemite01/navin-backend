@@ -10,14 +10,19 @@ export const createApiKeyController: RequestHandler = async (req, res) => {
     throw new AppError(400, 'name and organizationId are required', 'VALIDATION_ERROR');
   }
 
-  const result = await generateApiKey({ name, organizationId, shipmentId });
+  const result = await generateApiKey({
+    name,
+    organizationId,
+    shipmentId,
+    createdBy: req.user?.userId,
+  });
 
   sendResponse(
     res,
     201,
     true,
     'API key created successfully. Save this key securely - it will not be shown again.',
-    result,
+    result
   );
 };
 

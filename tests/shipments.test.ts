@@ -1,5 +1,6 @@
 import { jest, describe, beforeAll, beforeEach, it, expect } from '@jest/globals';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import process from 'process';
 import type { Application } from 'express';
 
@@ -124,8 +125,20 @@ await jest.unstable_mockModule('../src/modules/users/users.model.js', () => {
       return Promise.resolve(user);
     },
     findById: (id: PrimitiveId) => Promise.resolve(usersData.find(u => String(u._id) === String(id)) || null),
+    findOne: (query: Record<string, any>) => Promise.resolve(usersData.find(u => u.email === query.email) || null),
   };
-  return { UserModel };
+  const UserRole = {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    ADMIN: 'ADMIN',
+    MANAGER: 'MANAGER',
+    VIEWER: 'VIEWER',
+    CUSTOMER: 'CUSTOMER',
+  };
+  const OrganizationType = {
+    ENTERPRISE: 'ENTERPRISE',
+    LOGISTICS: 'LOGISTICS',
+  };
+  return { UserModel, UserRole, OrganizationType };
 });
 
 await jest.unstable_mockModule('../src/infra/socket/io.js', () => {
@@ -141,11 +154,16 @@ await jest.unstable_mockModule('../src/infra/socket/io.js', () => {
 describe('Shipments API (mocked DB)', () => {
   let app: Application;
   let buildApp: () => Application;
+  let authToken: string;
 
   beforeAll(async () => {
     const appModule = await import('../src/app.js');
     buildApp = appModule.buildApp as () => Application;
     app = buildApp();
+    authToken = jwt.sign(
+      { userId: 'test-user-id', role: 'MANAGER' },
+      process.env.JWT_SECRET!
+    );
   });
 
   beforeEach(async () => {
@@ -164,13 +182,17 @@ describe('Shipments API (mocked DB)', () => {
         status: 'CREATED',
       });
     }
-    const first = await request(app).get('/api/shipments?limit=5');
+    const first = await request(app)
+      .get('/api/shipments?limit=5')
+      .set('Authorization', `Bearer ${authToken}`);
     expect(first.status).toBe(200);
     expect(first.body.data).toHaveLength(5);
     expect(first.body.meta.hasMore).toBe(true);
     expect(first.body.meta.nextCursor).toBeTruthy();
 
-    const second = await request(app).get(`/api/shipments?limit=5&cursor=${first.body.meta.nextCursor}`);
+    const second = await request(app)
+      .get(`/api/shipments?limit=5&cursor=${first.body.meta.nextCursor}`)
+      .set('Authorization', `Bearer ${authToken}`);
     expect(second.status).toBe(200);
     expect(second.body.data).toHaveLength(5);
     const firstIds = first.body.data.map((s: { _id: string }) => s._id);
@@ -182,7 +204,9 @@ describe('Shipments API (mocked DB)', () => {
     const mod = await import('../src/modules/shipments/shipments.model.js');
     await mod.Shipment.create({ trackingNumber: 'TN1', origin: 'A', destination: 'B', enterpriseId: 'ent1', logisticsId: 'log1', status: 'IN_TRANSIT' });
     await mod.Shipment.create({ trackingNumber: 'TN2', origin: 'A', destination: 'B', enterpriseId: 'ent2', logisticsId: 'log2', status: 'DELIVERED' });
-    const res = await request(app).get('/api/shipments?status=IN_TRANSIT&limit=20');
+    const res = await request(app)
+      .get('/api/shipments?status=IN_TRANSIT&limit=20')
+      .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(200);
     expect(res.body.data.length).toBe(1);
     expect(res.body.data[0].status).toBe('IN_TRANSIT');
@@ -287,5 +311,66 @@ describe('Shipments API (mocked DB)', () => {
       });
     expect(res.status).toBe(201);
     expect(res.body.data.trackingNumber).toBe('TN-NEW-1');
+  });
+  // --- New Tests for Unauthorized Route Access---
+
+  it('should return 401 when trying to update a shipment (PATCH /:id) without a token', async () => {
+    const res = await request(app)
+      .patch('/api/shipments/123')
+      .send({ destination: 'New City' });
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 403 when trying to update a shipment (PATCH /:id) as a VIEWER', async () => {
+    const users = await import('../src/modules/users/users.model.js');
+    const user = await users.UserModel.create({
+      email: 'viewer_patch@example.com',
+      name: 'Viewer',
+      passwordHash: 'password',
+      role: 'VIEWER',
+      organizationId: 'org1',
+      walletAddress: '0xABC123',
+    });
+
+    const tokenPayload = { userId: String(user._id), role: user.role };
+    const { default: { sign } } = await import('jsonwebtoken');
+    const token = sign(tokenPayload, process.env.JWT_SECRET!);
+
+    const res = await request(app)
+      .patch('/api/shipments/123')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ destination: 'New City' });
+    
+    expect(res.status).toBe(403);
+  });
+
+  it('should return 401 when trying to upload proof (POST /:id/proof) without a token', async () => {
+    const res = await request(app)
+      .post('/api/shipments/123/proof')
+      .send({ proofData: 'some_base64_string' });
+    expect(res.status).toBe(401);
+  });
+
+  it('should return 403 when trying to upload proof (POST /:id/proof) as a VIEWER', async () => {
+    const users = await import('../src/modules/users/users.model.js');
+    const user = await users.UserModel.create({
+      email: 'viewer_proof@example.com',
+      name: 'Viewer',
+      passwordHash: 'password',
+      role: 'VIEWER',
+      organizationId: 'org1',
+      walletAddress: '0xABC123',
+    });
+
+    const tokenPayload = { userId: String(user._id), role: user.role };
+    const { default: { sign } } = await import('jsonwebtoken');
+    const token = sign(tokenPayload, process.env.JWT_SECRET!);
+
+    const res = await request(app)
+      .post('/api/shipments/123/proof')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ proofData: 'some_base64_string' });
+    
+    expect(res.status).toBe(403);
   });
 });

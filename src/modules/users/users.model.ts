@@ -1,10 +1,7 @@
-import mongoose, { type InferSchemaType } from 'mongoose';
+import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
-
-export enum OrganizationType {
-  ENTERPRISE = 'ENTERPRISE',
-  LOGISTICS = 'LOGISTICS',
-}
+import { isoDatePlugin } from '../../shared/plugins/isoDatePlugin.js';
+import { IOrganization, OrganizationType, IUser, UserRole } from '../../shared/types/user.js';
 
 const OrganizationSchema = new mongoose.Schema(
   {
@@ -14,13 +11,7 @@ const OrganizationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export enum UserRole {
-  SUPER_ADMIN = 'SUPER_ADMIN',
-  ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER',
-  VIEWER = 'VIEWER',
-  CUSTOMER = 'CUSTOMER',
-}
+OrganizationSchema.plugin(isoDatePlugin);
 
 const UserSchema = new mongoose.Schema(
   {
@@ -30,9 +21,21 @@ const UserSchema = new mongoose.Schema(
     role: { type: String, enum: Object.values(UserRole), required: true },
     organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
     walletAddress: { type: String, required: false },
+    deletedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (_doc, ret) => {
+        const result = ret as any;
+        delete result.passwordHash;
+        return result;
+      },
+    },
+  }
 );
+
+UserSchema.plugin(isoDatePlugin);
 
 // Pre-save hook to hash password
 UserSchema.pre('save', async function (next) {
@@ -50,10 +53,16 @@ UserSchema.methods.toJSON = function () {
   return obj;
 };
 
-export type Organization = InferSchemaType<typeof OrganizationSchema> & {
-  _id: mongoose.Types.ObjectId;
-};
-export const OrganizationModel = mongoose.model<Organization>('Organization', OrganizationSchema);
+// Soft delete middleware
+UserSchema.pre(['find', 'findOne', 'findOneAndUpdate', 'countDocuments'], function () {
+  this.where({ deletedAt: null });
+});
 
-export type User = InferSchemaType<typeof UserSchema> & { _id: mongoose.Types.ObjectId };
-export const UserModel = mongoose.model<User>('User', UserSchema);
+UserSchema.pre('aggregate', function () {
+  this.pipeline().unshift({ $match: { deletedAt: null } });
+});
+
+export const OrganizationModel = mongoose.model<IOrganization>('Organization', OrganizationSchema);
+
+export const UserModel = mongoose.model<IUser>('User', UserSchema);
+export { UserRole };

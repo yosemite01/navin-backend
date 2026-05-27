@@ -209,6 +209,75 @@ paths:
           description: Unauthorized
         '404':
           description: API key not found
+  /api/users/invitations:
+    post:
+      summary: Generate user invitation link
+      description: Creates a signed 48-hour invitation token bound to the inviter organization and target role.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [ADMIN, MANAGER, VIEWER, CUSTOMER]
+      responses:
+        '201':
+          description: Invitation generated
+        '403':
+          description: Forbidden
+  /api/users/invitations/verify:
+    get:
+      summary: Verify invitation token
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation token is valid
+        '401':
+          description: Invalid or expired invitation token
+  /api/users/invitations/accept:
+    post:
+      summary: Accept invitation and create account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - name
+                - password
+              properties:
+                token:
+                  type: string
+                name:
+                  type: string
+                password:
+                  type: string
+                  minLength: 6
+      responses:
+        '201':
+          description: Invitation accepted
+        '401':
+          description: Invalid or expired invitation token
+        '409':
+          description: Email already in use
   /api/analytics/performance:
     get:
       summary: Get analytics performance dashboard

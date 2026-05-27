@@ -8,13 +8,17 @@ import {
   uploadShipmentProofService,
 } from './shipments.service.js';
 import { sendResponse } from '../../shared/http/sendResponse.js';
+import type { GetShipmentsQuery } from './shipments.validation.js';
 
 export const getShipments = async (req: Request, res: Response) => {
-  const { status, cursor, limit = 20, ...filters } = req.query;
+  const query = req.query as unknown as GetShipmentsQuery;
+  const { status, cursor, limit = 20, origin, destination, ...filters } = query;
   const { data, nextCursor, hasMore } = await getShipmentsService({
     status,
     cursor,
     limit: Number(limit),
+    origin,
+    destination,
     filters: filters as Record<string, unknown>,
   });
 
@@ -86,7 +90,7 @@ export const uploadShipmentProof = async (req: Request, res: Response) => {
     }
 
     sendResponse(res, 200, true, 'Proof uploaded', shipment);
-  } catch (error) {
+  } catch {
     sendResponse(res, 500, false, 'Server error', null);
   }
 };

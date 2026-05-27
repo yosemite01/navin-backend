@@ -9,12 +9,14 @@ import {
 } from './shipments.controller.js';
 import { requireRole } from '../../shared/middleware/requireRole.js';
 import { requireAuth } from '../../shared/middleware/requireAuth.js';
+import { validate } from '../../shared/validation/validate.js';
+import { getShipmentsQuerySchema } from './shipments.validation.js';
 import multer from 'multer';
 
 export const shipmentsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-shipmentsRouter.get('/', asyncHandler(getShipments));
+shipmentsRouter.get('/', validate({ query: getShipmentsQuerySchema }), asyncHandler(getShipments));
 shipmentsRouter.post(
   '/',
   requireAuth,

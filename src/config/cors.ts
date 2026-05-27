@@ -1,7 +1,7 @@
 import cors, { type CorsOptionsDelegate } from 'cors';
 import type { Request } from 'express';
 
-function isAllowedOrigin(origin: string, allowedOrigins: readonly string[]): boolean {
+function isAllowedOrigin(origin: string, allowedOrigins: string[]): boolean {
   return allowedOrigins.includes(origin);
 }
 
@@ -9,21 +9,21 @@ function getAllowedOrigins(): string[] {
   const raw = process.env.ALLOWED_ORIGINS ?? '';
   return raw
     .split(',')
-    .map(origin => origin.trim())
+    .map(o => o.trim())
     .filter(Boolean);
 }
 
-const corsOptionsDelegate: CorsOptionsDelegate<Request> = (req, callback) => {
+export const corsOptionsDelegate: CorsOptionsDelegate<Request> = (req, callback) => {
   const requestOrigin = req.header('Origin');
   const allowedOrigins = getAllowedOrigins();
 
   // Allow non-browser requests that do not send an Origin header.
   if (!requestOrigin) {
-    return callback(null, { origin: true });
+    return callback(null, { origin: true, credentials: true });
   }
 
   if (allowedOrigins.length === 0 || isAllowedOrigin(requestOrigin, allowedOrigins)) {
-    return callback(null, { origin: true });
+    return callback(null, { origin: true, credentials: true });
   }
 
   return callback(new Error('Not allowed by CORS'));

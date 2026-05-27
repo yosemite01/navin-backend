@@ -2,6 +2,7 @@ import { jest, describe, beforeAll, beforeEach, it, expect } from '@jest/globals
 import request from 'supertest';
 import { fileURLToPath } from 'node:url';
 import type { Application } from 'express';
+import jwt from 'jsonwebtoken';
 
 type PrimitiveId = string | number;
 type ShipmentRecord = {
@@ -63,13 +64,15 @@ await jest.unstable_mockModule('../src/modules/shipments/shipments.model.js', ()
 
 describe('POST /api/shipments/:id/proof', () => {
   let app: Application;
-  let managerToken: string;
+  let authToken: string;
 
   beforeAll(async () => {
     const appModule = await import('../src/app.js');
     app = appModule.buildApp();
-    const { default: jwt } = await import('jsonwebtoken');
-    managerToken = jwt.sign({ userId: 'manager-1', role: 'MANAGER' }, process.env.JWT_SECRET || 'secret');
+    authToken = jwt.sign(
+      { userId: 'user-1', role: 'MANAGER', organizationId: 'org-1' },
+      process.env.JWT_SECRET || 'secret'
+    );
   });
 
   beforeEach(() => {
@@ -90,7 +93,7 @@ describe('POST /api/shipments/:id/proof', () => {
     const imagePath = fileURLToPath(new URL('./fixtures/test-image.jpg', import.meta.url));
     const res = await request(app)
       .post(`/api/shipments/${shipment._id}/proof`)
-      .set('Authorization', `Bearer ${managerToken}`)
+      .set('Authorization', `Bearer ${authToken}`)
       .field('recipientSignatureName', 'John Doe')
       .attach('file', imagePath);
 
@@ -114,7 +117,7 @@ describe('POST /api/shipments/:id/proof', () => {
     const imagePath = fileURLToPath(new URL('./fixtures/test-image.jpg', import.meta.url));
     const res = await request(app)
       .post(`/api/shipments/${shipment._id}/proof`)
-      .set('Authorization', `Bearer ${managerToken}`)
+      .set('Authorization', `Bearer ${authToken}`)
       .field('recipientSignatureName', 'Jane Doe')
       .field('notes', 'Package delivered with signature')
       .attach('file', imagePath);
@@ -136,7 +139,7 @@ describe('POST /api/shipments/:id/proof', () => {
 
     const res = await request(app)
       .post(`/api/shipments/${shipment._id}/proof`)
-      .set('Authorization', `Bearer ${managerToken}`)
+      .set('Authorization', `Bearer ${authToken}`)
       .field('recipientSignatureName', 'John Doe');
 
     expect(res.status).toBe(400);

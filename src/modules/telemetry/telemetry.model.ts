@@ -1,11 +1,6 @@
 import { Schema, Types, model } from 'mongoose';
 import { isoDatePlugin } from '../../shared/plugins/isoDatePlugin.js';
-
-export enum TelemetryAnchorStatus {
-  PENDING_ANCHOR = 'PENDING_ANCHOR',
-  ANCHORED = 'ANCHORED',
-  ANCHOR_FAILED = 'ANCHOR_FAILED',
-}
+import { ITelemetry, TelemetryAnchorStatus } from '../../shared/types/telemetry.js';
 
 const TelemetrySchema = new Schema(
   {
@@ -34,7 +29,6 @@ const TelemetrySchema = new Schema(
 
     // Keep the original webhook payload for traceability/auditing.
     rawPayload: { type: Schema.Types.Mixed, required: true },
-    rawPayload: { type: Schema.Types.Mixed, required: true },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
@@ -53,4 +47,5 @@ TelemetrySchema.pre('aggregate', function () {
   this.pipeline().unshift({ $match: { deletedAt: null } });
 });
 
-export const Telemetry = model('Telemetry', TelemetrySchema);
+export const Telemetry = model<ITelemetry>('Telemetry', TelemetrySchema);
+export { TelemetryAnchorStatus };

@@ -1,4 +1,4 @@
-import { Shipment, ShipmentStatus } from './shipments.model.js';
+import { Shipment } from './shipments.model.js';
 import type { FilterQuery } from 'mongoose';
 import { tokenizeShipment } from '../../services/stellar.service.js';
 import { mockUploadToStorage } from '../../services/mockStorageService.js';
@@ -7,14 +7,19 @@ import { emitStatusUpdate } from '../../infra/socket/io.js';
 import { Anomaly } from '../anomaly/anomaly.model.js';
 import { Telemetry } from '../telemetry/telemetry.model.js';
 import { AppError } from '../../shared/http/errors.js';
+import { IShipment, ShipmentStatus } from '../../shared/types/shipment.js';
+import { auditLog } from '../../shared/utils/auditLog.js';
 
 type ShipmentListResult = {
-  data: Awaited<ReturnType<typeof findShipments>>;
+  data: IShipment[];
   nextCursor: string | null;
   hasMore: boolean;
 };
 
-export const findShipments = async (query: FilterQuery<unknown>, limit: number) => {
+export const findShipments = async (
+  query: FilterQuery<unknown>,
+  limit: number
+): Promise<IShipment[]> => {
   return Shipment.find(query)
     .sort({ createdAt: -1, _id: -1 })
     .limit(limit + 1)
@@ -42,12 +47,14 @@ export const getShipmentsService = async (params: {
 };
 
 export const createShipmentService = async (data: {
-  trackingNumber: string;
+  trackingNumber?: string;
   origin: string;
   destination: string;
   [key: string]: unknown;
 }) => {
-  const shipment = new Shipment(data);
+  const trackingNumber =
+    data.trackingNumber || `NVN-${Math.floor(100000 + Math.random() * 900000)}`;
+  const shipment = new Shipment({ ...data, trackingNumber });
   await shipment.save();
 
   try {
@@ -85,12 +92,19 @@ export const updateShipmentStatusService = async (
     throw new Error('Invalid status');
   }
 
+  const previousStatus = shipment.status;
   shipment.status = status;
 
-  const milestone: Record<string, unknown> = {
+  const milestone = {
     name: status,
     timestamp: new Date(),
     description: `Status changed to ${status}`,
+  } as {
+    name: string;
+    timestamp: Date;
+    description?: string;
+    userId?: string;
+    walletAddress?: string;
   };
 
   if (actor?.userId) {
@@ -105,7 +119,9 @@ export const updateShipmentStatusService = async (
       | null;
 
     if (userLookup && typeof userLookup === 'object' && 'select' in userLookup) {
-      const found = await userLookup.select?.({ walletAddress: 1 }).lean<{ walletAddress?: string }>();
+      const found = await userLookup
+        .select?.({ walletAddress: 1 })
+        .lean<{ walletAddress?: string }>();
       if (found?.walletAddress) {
         milestone.walletAddress = found.walletAddress;
       }
@@ -120,6 +136,16 @@ export const updateShipmentStatusService = async (
   shipment.milestones.push(milestone);
 
   await shipment.save();
+
+  if (actor?.userId) {
+    auditLog({
+      userId: actor.userId,
+      action: 'SHIPMENT_STATUS_CHANGED',
+      resourceId: id,
+      timestamp: new Date(),
+      metadata: { previousStatus, newStatus: status },
+    });
+  }
 
   emitStatusUpdate(id, {
     shipmentId: id,

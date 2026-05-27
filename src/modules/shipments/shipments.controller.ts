@@ -54,18 +54,14 @@ export const patchShipmentStatus = async (req: Request, res: Response) => {
 
   const user = req.user;
 
-  try {
-    const updated = await updateShipmentStatusService(id, status as ShipmentStatus, {
-      userId: user?.userId,
-    });
-    if (!updated) {
-      sendResponse(res, 404, false, 'Shipment not found', null);
-      return;
-    }
-    sendResponse(res, 200, true, 'Shipment status updated', updated);
-  } catch (err) {
-    sendResponse(res, 400, false, (err as Error).message || 'Failed to update status', null);
+  const updated = await updateShipmentStatusService(id, status as ShipmentStatus, {
+    userId: user?.userId,
+  });
+  if (!updated) {
+    sendResponse(res, 404, false, 'Shipment not found', null);
+    return;
   }
+  sendResponse(res, 200, true, 'Shipment status updated', updated);
 };
 
 export const uploadShipmentProof = async (req: Request, res: Response) => {

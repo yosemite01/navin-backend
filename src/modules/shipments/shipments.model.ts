@@ -1,11 +1,6 @@
 import { Schema, model, Types } from 'mongoose';
-
-export enum ShipmentStatus {
-  CREATED = 'CREATED',
-  IN_TRANSIT = 'IN_TRANSIT',
-  DELIVERED = 'DELIVERED',
-  CANCELLED = 'CANCELLED',
-}
+import { isoDatePlugin } from '../../shared/plugins/isoDatePlugin.js';
+import { IShipment, ShipmentStatus } from '../../shared/types/shipment.js';
 
 const MilestoneSchema = new Schema({
   name: { type: String, required: true },
@@ -14,6 +9,8 @@ const MilestoneSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User' },
   walletAddress: { type: String },
 });
+
+MilestoneSchema.plugin(isoDatePlugin);
 
 const ShipmentSchema = new Schema(
   {
@@ -32,9 +29,12 @@ const ShipmentSchema = new Schema(
       recipientSignatureName: { type: String },
       uploadedAt: { type: Date },
     },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+ShipmentSchema.plugin(isoDatePlugin);
 
 ShipmentSchema.index({ status: 1, createdAt: -1 });
 ShipmentSchema.index({ enterpriseId: 1, createdAt: -1 });
@@ -42,4 +42,14 @@ ShipmentSchema.index({ logisticsId: 1, createdAt: -1 });
 ShipmentSchema.index({ createdAt: -1, _id: -1 });
 ShipmentSchema.index({ origin: 'text', destination: 'text' });
 
-export const Shipment = model('Shipment', ShipmentSchema);
+// Soft delete middleware
+ShipmentSchema.pre(['find', 'findOne', 'findOneAndUpdate', 'countDocuments'], function () {
+  this.where({ deletedAt: null });
+});
+
+ShipmentSchema.pre('aggregate', function () {
+  this.pipeline().unshift({ $match: { deletedAt: null } });
+});
+
+export const Shipment = model<IShipment>('Shipment', ShipmentSchema);
+export { ShipmentStatus };

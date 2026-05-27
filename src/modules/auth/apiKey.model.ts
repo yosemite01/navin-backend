@@ -1,4 +1,6 @@
-import mongoose, { type InferSchemaType } from 'mongoose';
+import mongoose from 'mongoose';
+import { isoDatePlugin } from '../../shared/plugins/isoDatePlugin.js';
+import { IApiKey } from '../../shared/types/apiKey.js';
 
 const ApiKeySchema = new mongoose.Schema(
   {
@@ -12,9 +14,10 @@ const ApiKeySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+ApiKeySchema.plugin(isoDatePlugin);
+
 ApiKeySchema.index({ keyHash: 1 });
 ApiKeySchema.index({ organizationId: 1 });
 ApiKeySchema.index({ shipmentId: 1 });
 
-export type ApiKey = InferSchemaType<typeof ApiKeySchema> & { _id: mongoose.Types.ObjectId };
-export const ApiKeyModel = mongoose.model<ApiKey>('ApiKey', ApiKeySchema);
+export const ApiKeyModel = mongoose.model<IApiKey>('ApiKey', ApiKeySchema);

@@ -1,15 +1,12 @@
 import { Schema, Types, model } from 'mongoose';
-
-export enum TelemetryAnchorStatus {
-  PENDING_ANCHOR = 'PENDING_ANCHOR',
-  ANCHORED = 'ANCHORED',
-  ANCHOR_FAILED = 'ANCHOR_FAILED',
-}
+import { isoDatePlugin } from '../../shared/plugins/isoDatePlugin.js';
+import { ITelemetry, TelemetryAnchorStatus } from '../../shared/types/telemetry.js';
 
 const TelemetrySchema = new Schema(
   {
     // metaField — identifies the sensor source
-    sensorId: { type: String, required: true },
+    // metaField — identifies the sensor source when provided by upstream systems
+    sensorId: { type: String },
 
     shipmentId: { type: Types.ObjectId, ref: 'Shipment', required: true },
 
@@ -36,7 +33,10 @@ const TelemetrySchema = new Schema(
   { timestamps: true }
 );
 
+TelemetrySchema.plugin(isoDatePlugin);
+
 TelemetrySchema.index({ shipmentId: 1, timestamp: -1 });
 TelemetrySchema.index({ anchorStatus: 1 });
 
-export const Telemetry = model('Telemetry', TelemetrySchema);
+export const Telemetry = model<ITelemetry>('Telemetry', TelemetrySchema);
+export { TelemetryAnchorStatus };

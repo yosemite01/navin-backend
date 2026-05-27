@@ -3,7 +3,7 @@ export default {
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^(\\.\\.?/.*)\\.js$': '$1',
   },
   transform: {
     '^.+\\.ts$': [
@@ -18,7 +18,11 @@ export default {
       },
     ],
   },
-  testMatch: ['**/tests/**/*.test.ts', '**/__tests__/**/*.test.ts', '**/src/modules/**/!(*.model)*.test.ts'],
+  testMatch: [
+    '**/tests/**/*.test.ts',
+    '**/__tests__/**/*.test.ts',
+    '**/src/modules/**/!(*.model)*.test.ts',
+  ],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -40,6 +44,6 @@ export default {
     },
   },
   verbose: true,
-  setupFiles: ['./tests/setup.ts'],
+  setupFilesAfterEnv: ['./tests/setup.ts'],
   modulePathIgnorePatterns: ['<rootDir>/src/modules/users/__mocks__/'],
 };

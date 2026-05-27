@@ -1,5 +1,6 @@
 import { Telemetry, TelemetryAnchorStatus } from './telemetry.model.js';
-import { Shipment, ShipmentStatus } from '../shipments/shipments.model.js';
+import { Shipment } from '../shipments/shipments.model.js';
+import { ShipmentStatus } from '../../shared/types/shipment.js';
 import type { FilterQuery } from 'mongoose';
 
 /**
@@ -14,12 +15,13 @@ export async function findActiveShipmentBySensorId(sensorId: string) {
 }
 
 export async function createTelemetryRecord(input: {
-  sensorId: string;
+  sensorId?: string;
   shipmentId: string;
   temperature: number;
   humidity: number;
   latitude: number;
   longitude: number;
+  batteryLevel: number;
   timestamp: Date;
   dataHash: string;
   stellarTxHash?: string;
@@ -27,12 +29,13 @@ export async function createTelemetryRecord(input: {
   rawPayload: unknown;
 }) {
   return Telemetry.create({
-    sensorId: input.sensorId,
+    sensorId: input.sensorId ?? input.shipmentId,
     shipmentId: input.shipmentId,
     temperature: input.temperature,
     humidity: input.humidity,
     latitude: input.latitude,
     longitude: input.longitude,
+    batteryLevel: input.batteryLevel,
     timestamp: input.timestamp,
     dataHash: input.dataHash,
     stellarTxHash: input.stellarTxHash,
@@ -45,7 +48,7 @@ export async function updateTelemetryAnchor(telemetryId: string, stellarTxHash: 
   return Telemetry.findByIdAndUpdate(
     telemetryId,
     { stellarTxHash, anchorStatus: TelemetryAnchorStatus.ANCHORED },
-    { new: true },
+    { new: true }
   );
 }
 
@@ -53,7 +56,7 @@ export async function markTelemetryAnchorFailed(telemetryId: string, error: stri
   return Telemetry.findByIdAndUpdate(
     telemetryId,
     { anchorStatus: TelemetryAnchorStatus.ANCHOR_FAILED, anchorError: error },
-    { new: true },
+    { new: true }
   );
 }
 

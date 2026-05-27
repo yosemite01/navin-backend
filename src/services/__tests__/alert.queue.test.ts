@@ -8,11 +8,15 @@ jest.unstable_mockModule('bullmq', () => ({
 }));
 
 jest.unstable_mockModule('../../infra/redis/connection.js', () => ({
-  redisConnection: {},
+  getRedisConnection: () => ({}),
 }));
 
 describe('dispatchAlert', () => {
-  let dispatchAlert: (data: { type: 'ANOMALY' | 'STATUS_CHANGE'; message: string; shipmentId: string }) => Promise<void>;
+  let dispatchAlert: (data: {
+    type: 'ANOMALY' | 'STATUS_CHANGE';
+    message: string;
+    shipmentId: string;
+  }) => Promise<void>;
 
   beforeEach(async () => {
     jest.clearAllMocks();

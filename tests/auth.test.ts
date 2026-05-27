@@ -79,6 +79,7 @@ describe('Auth Service', () => {
         email: 'test@example.com',
         name: 'Test User',
         password: 'password123',
+        organizationId: 'org-id-123',
       });
 
       expect(result).toHaveProperty('token');
@@ -98,6 +99,7 @@ describe('Auth Service', () => {
           email: 'test@example.com',
           name: 'Test User',
           password: 'password123',
+          organizationId: 'org-id-123',
         })
       ).rejects.toThrow('Email already in use');
     });
@@ -239,8 +241,13 @@ describe('Auth Service', () => {
       const res = {} as Response;
       const next = jest.fn();
 
-      expect(() => requireAuth(req, res, next)).toThrow(AppError);
-      expect(next).not.toHaveBeenCalled();
+      requireAuth(req, res, next);
+
+      expect(next).toHaveBeenCalledWith(expect.any(AppError));
+      const error = next.mock.calls[0][0] as AppError;
+      expect(error.statusCode).toBe(401);
+      // Refactored for Issue #93: verify the standardized error code
+      expect(error.code).toBe('ERR_AUTH_INVALID');
     });
   });
 });

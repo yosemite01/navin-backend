@@ -79,15 +79,17 @@ export async function getAnalyticsPerformance(
     },
   ];
 
-  const [facet] = (await Shipment.aggregate(pipeline)) as AggregationFacet[];
+  const [facet] = (await Shipment.aggregate(pipeline).option({
+    maxTimeMS: 5000,
+  })) as AggregationFacet[];
 
-  const shipmentsByStatus = (facet?.shipmentsByStatus ?? []).map(row => ({
+  const shipmentsByStatus = (facet?.shipmentsByStatus ?? []).map((row: any) => ({
     status: String(row._id),
     total: Number(row.total ?? 0),
   }));
 
   const averageDeliveryTimeByLogisticsId = (facet?.averageDeliveryTimeByLogisticsId ?? []).map(
-    row => ({
+    (row: any) => ({
       logisticsId: String(row._id),
       averageDeliveryTimeMs: Number(row.averageDeliveryTimeMs ?? 0),
     })

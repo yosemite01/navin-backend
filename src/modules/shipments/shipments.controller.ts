@@ -13,17 +13,21 @@ import type { GetShipmentsQuery } from './shipments.validation.js';
 
 export const getShipments = async (req: Request, res: Response) => {
   const query = req.query as unknown as GetShipmentsQuery;
-  const { status, cursor, limit = 20, origin, destination, ...filters } = query;
-  const { data, nextCursor, hasMore } = await getShipmentsService({
+  const { status, page = 1, limit = 20, origin, destination, ...filters } = query;
+  const { data, page: currentPage, limit: currentLimit, total } = await getShipmentsService({
     status,
-    cursor,
+    page: Number(page),
     limit: Number(limit),
     origin,
     destination,
     filters: filters as Record<string, unknown>,
   });
 
-  sendResponse(res, 200, true, 'Shipments retrieved', data, { nextCursor, hasMore });
+  sendResponse(res, 200, true, 'Shipments retrieved', data, { 
+    page: currentPage, 
+    limit: currentLimit, 
+    total 
+  });
 };
 
 export const createShipment = async (req: Request, res: Response) => {
@@ -69,24 +73,29 @@ export const patchShipmentStatus = async (req: Request, res: Response) => {
 };
 
 export const uploadShipmentProof = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { recipientSignatureName, notes } = req.body as {
-    recipientSignatureName?: string;
-    notes?: string;
-  };
-  const file = req.file;
+  try {
+    const { id } = req.params;
+    const { recipientSignatureName, notes } = req.body as {
+      recipientSignatureName?: string;
+      notes?: string;
+    };
+    const file = req.file;
 
-  if (!file) {
-    sendResponse(res, 400, false, 'No file uploaded', null);
-    return;
-  }
+    if (!file) {
+      sendResponse(res, 400, false, 'No file uploaded', null);
+      return;
+    }
 
-  const shipment = await uploadShipmentProofService(id, file, {
-    recipientSignatureName,
-    notes,
-  });
+    const shipment = await uploadShipmentProofService(id, file, {
+      recipientSignatureName,
+      notes,
+    });
 
   sendResponse(res, 200, true, 'Proof uploaded', shipment);
+    sendResponse(res, 200, true, 'Proof uploaded', shipment);
+  } catch {
+    sendResponse(res, 500, false, 'Server error', null);
+  }
 };
 
 export const deleteShipment = async (req: Request, res: Response) => {

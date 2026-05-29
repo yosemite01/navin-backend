@@ -1,6 +1,6 @@
 import { Shipment } from './shipments.model.js';
 import type { FilterQuery } from 'mongoose';
-import { tokenizeShipment } from '../../services/stellar.service.js';
+import { tokenizeShipment, releaseEscrow } from '../../services/stellar.service.js';
 import { mockUploadToStorage } from '../../services/mockStorageService.js';
 import { UserModel } from '../users/users.model.js';
 import { emitStatusUpdate } from '../../infra/socket/io.js';
@@ -10,36 +10,40 @@ import { AppError } from '../../shared/http/errors.js';
 import { IShipment, ShipmentStatus } from '../../shared/types/shipment.js';
 import { auditLog } from '../../shared/utils/auditLog.js';
 import { invalidateAnalyticsPerformanceCache } from '../analytics/analytics.cache.js';
+import * as paymentsRepo from '../payments/payments.repo.js';
+import { PaymentStatus } from '../payments/payments.model.js';
 
 type ShipmentListResult = {
   data: IShipment[];
-  nextCursor: string | null;
-  hasMore: boolean;
+  page: number;
+  limit: number;
+  total: number;
 };
 
 export const findShipments = async (
   query: FilterQuery<unknown>,
+  skip: number,
   limit: number
 ): Promise<IShipment[]> => {
   return Shipment.find(query)
     .sort({ createdAt: -1, _id: -1 })
-    .limit(limit + 1)
+    .skip(skip)
+    .limit(limit)
     .lean();
 };
 
 export const getShipmentsService = async (params: {
   status?: string;
-  cursor?: string;
+  page: number;
   limit: number;
   origin?: string;
   destination?: string;
   filters: Record<string, unknown>;
 }): Promise<ShipmentListResult> => {
-  const { status, cursor, limit, origin, destination, filters } = params;
+  const { status, page, limit, origin, destination, filters } = params;
   const query: FilterQuery<unknown> = { ...filters };
 
   if (status) query.status = status;
-  if (cursor) query._id = { $lt: cursor };
   if (origin) {
     const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     query.origin = { $regex: escapedOrigin, $options: 'i' };
@@ -49,12 +53,13 @@ export const getShipmentsService = async (params: {
     query.destination = { $regex: escapedDestination, $options: 'i' };
   }
 
-  const shipments = await findShipments(query, limit);
-  const hasMore = shipments.length > limit;
-  const data = hasMore ? shipments.slice(0, limit) : shipments;
-  const nextCursor = hasMore && data.length > 0 ? data[data.length - 1]._id.toString() : null;
+  const skip = (page - 1) * limit;
+  const [data, total] = await Promise.all([
+    findShipments(query, skip, limit),
+    Shipment.countDocuments(query),
+  ]);
 
-  return { data, nextCursor, hasMore };
+  return { data, page, limit, total };
 };
 
 export const createShipmentService = async (data: {
@@ -149,6 +154,38 @@ export const updateShipmentStatusService = async (
   await shipment.save();
   await invalidateAnalyticsPerformanceCache();
 
+  // Trigger escrow release on delivery
+  if (status === ShipmentStatus.DELIVERED) {
+    try {
+      const payment = await paymentsRepo.getPaymentByShipmentId(shipment._id.toString());
+      if (payment) {
+        const releaseResult = await releaseEscrow({
+          paymentId: payment._id.toString(),
+          shipmentId: shipment._id.toString(),
+        });
+
+        if (releaseResult.success && releaseResult.transactionHash) {
+          await paymentsRepo.updatePaymentStatus(
+            payment._id.toString(),
+            PaymentStatus.RELEASED,
+            releaseResult.transactionHash,
+          );
+          console.log(
+            `[Shipment] Escrow released for shipment ${id}, ` +
+              `tx: ${releaseResult.transactionHash}`,
+          );
+        }
+      }
+    } catch (escrowError) {
+      console.warn(
+        `[Shipment] Failed to trigger escrow release for ${id}:`,
+        escrowError,
+      );
+      // Don't fail the shipment status update if escrow release fails
+      // The payment status can be manually updated later via webhook
+    }
+  }
+
   if (actor?.userId) {
     auditLog({
       userId: actor.userId,
@@ -178,14 +215,18 @@ export const updateShipmentStatusService = async (
 export const uploadShipmentProofService = async (
   id: string,
   file: Express.Multer.File,
-  proof: { recipientSignatureName?: string; notes?: string }
+  proof: { recipientSignatureName?: string; notes?: string },
 ) => {
   let proofUrl: string;
 
   try {
     proofUrl = await mockUploadToStorage(file);
-  } catch (error) {
-    throw new AppError(503, 'Storage bucket unavailable, please try again later.', 'SERVICE_UNAVAILABLE');
+  } catch (err) {
+    throw new AppError(
+      503,
+      'Storage bucket unavailable, please try again later.',
+      'SERVICE_UNAVAILABLE',
+    );
   }
 
   const shipment = await Shipment.findByIdAndUpdate(

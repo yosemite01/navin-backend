@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ShipmentStatus } from '../../shared/constants/shipments.js';
 
 export const getShipmentsQuerySchema = z.object({
   status: z.string().optional(),
@@ -16,6 +17,12 @@ export const CreateShipmentBodySchema = z.object({
   destination: z.string().min(1),
   enterpriseId: z.string().optional(),
   logisticsId: z.string().optional(),
+export const CreateShipmentBodySchema = z.object({
+  trackingNumber: z.string().min(1),
+  origin: z.string().min(1),
+  destination: z.string().min(1),
+  enterpriseId: z.string().min(1),
+  logisticsId: z.string().min(1),
   offChainMetadata: z.record(z.unknown()).optional(),
 });
 
@@ -29,6 +36,11 @@ export const ShipmentPatchBodySchema = z.object({
 
 export const ShipmentStatusBodySchema = z.object({
   status: z.string().min(1),
+  trackingNumber: z.string().min(1).optional(),
+  origin: z.string().min(1).optional(),
+  destination: z.string().min(1).optional(),
+  status: z.string().optional(),
+  offChainMetadata: z.record(z.unknown()).optional(),
 });
 
 export const ShipmentProofBodySchema = z.object({
@@ -37,3 +49,15 @@ export const ShipmentProofBodySchema = z.object({
 });
 
 export const ShipmentsQuerySchema = getShipmentsQuerySchema;
+
+export const ShipmentStatusBodySchema = z.object({
+  status: z
+    .enum([
+      ShipmentStatus.CREATED,
+      ShipmentStatus.IN_TRANSIT,
+      ShipmentStatus.DELIVERED,
+      ShipmentStatus.CANCELLED,
+    ])
+    .describe('Shipment status'),
+  milestoneData: z.record(z.unknown()).optional(),
+});

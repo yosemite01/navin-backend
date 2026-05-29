@@ -12,13 +12,14 @@ import {
   acceptInvitationController,
   createInvitationController,
   createUserController,
+  createTeamMemberController,
   deleteUserController,
   listUsersController,
   verifyInvitationController,
+  listUsersController,
 } from './users.controller.js';
 import { requireAuth } from '../../shared/middleware/requireAuth.js';
 import { requireRole } from '../../shared/middleware/requireRole.js';
-
 import { UserRole } from '../../shared/constants/index.js';
 
 export const usersRouter = Router();
@@ -27,6 +28,14 @@ usersRouter.post(
   '/',
   validateRequest({ body: CreateUserBodySchema }),
   asyncHandler(createUserController)
+);
+
+usersRouter.post(
+  '/team',
+  requireAuth,
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest({ body: CreateUserBodySchema }),
+  asyncHandler(createTeamMemberController)
 );
 usersRouter.post(
   '/invitations',
